@@ -68,6 +68,7 @@ TAXONOMY = {
 
 
 class TaxonomyExpertBot(Bot):
+    """Apply the eCSIRT Taxonomy to all events"""
 
     def process(self):
         event = self.receive_message()
