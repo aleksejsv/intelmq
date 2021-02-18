@@ -8,7 +8,10 @@ The only possible selector is currently the country:
 * countries: A list of strings or a comma separated list with country codes
 """
 import pkg_resources
+from http.client import IncompleteRead
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
+from requests.exceptions import ChunkedEncodingError
 from intelmq.lib.bot import CollectorBot
 
 try:
@@ -35,11 +38,23 @@ class ShodanStreamCollectorBot(CollectorBot):
             self.countries = self.parameters.countries.split(',')
 
     def process(self):
-        for line in self.api.stream.countries(timeout=self.http_timeout_sec, raw=True,
-                                              countries=self.countries):
-            report = self.new_report()
-            report.add('raw', line)
-            self.send_message(report)
+        try:
+            for line in self.api.stream.countries(timeout=self.http_timeout_sec, raw=True,
+                                                  countries=self.countries):
+                report = self.new_report()
+                report.add('raw', line)
+                self.send_message(report)
+        except (ChunkedEncodingError,
+                ProtocolError,
+                IncompleteRead,
+                ReadTimeoutError):
+            self.error_count += 1
+            if (self.error_count > self.parameters.error_max_retries):
+                self.error_count = 0
+                raise
+            else:
+                self.logger.info('Got exception %r, retrying (error count %d < %d).',
+                                 exc, self.error_count, self.parameters.error_max_retries)
 
 
 BOT = ShodanStreamCollectorBot
